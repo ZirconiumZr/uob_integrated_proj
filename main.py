@@ -102,7 +102,7 @@ print('*' * 30)
 
 #### * Process
 # chunksfolder = 'chunks_The-S_20220228_162841'   # * for test
-final_sd_result = pd.DataFrame['index','starttime','endtime','duration','speaker_label']
+tem_sd_result = []
 if chunksfolder != '':
     for filename in os.listdir(chunksfolder+"/"):
         if filename.endswith(".wav"): 
@@ -123,7 +123,7 @@ if chunksfolder != '':
                                                 chunks=True,
                                                 reducenoise=False,
                                                 sd_proc='pyannoteaudio')  # ?: [pyannoteaudio, malaya]
-            final_sd_result.append(sd_result)
+            tem_sd_result.append(sd_result)
             
             # TODO: ....................... STT .........................
             
@@ -147,8 +147,9 @@ else:
                                         chunks=False,
                                         reducenoise=False, 
                                         sd_proc='pyannoteaudio')  # ?: [pyannoteaudio, malaya]
-    final_sd_result.append(sd_result)
-    
+    tem_sd_result.append(sd_result)
+
+final_sd_result = pd.DataFrame(tem_sd_result, columns=['index','starttime','endtime','duration','speaker_label'])
 # ....................... STT .........................
 # Get chunk audio files 
 from os import listdir
