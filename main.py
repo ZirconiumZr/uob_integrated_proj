@@ -48,7 +48,7 @@ import uob_audiosegmentation, uob_noisereduce, uob_speakerdiarization, uob_mainp
 
 #### * Declare variables
 AUDIO_NAME = 'Bdb001_interaction_first60s.wav' #'Bdb001_interaction_first60s.wav' #'The-Singaporean-White-Boy.wav'
-AUDIO_PATH = './'
+AUDIO_PATH = './wav/'
 AUDIO_FILE = os.path.join(AUDIO_PATH,AUDIO_NAME)
 SAMPLE_RATE = 44100
 num_audio_files = 1
@@ -112,7 +112,7 @@ if chunksfolder != '':
             y, sr = malaya_speech.load(file, SAMPLE_RATE)
                        
             ### * Process: reduce noise + vad + scd + ovl + sd
-            sd_result = uob_mainprocess.process(y, sr, 
+            sd_result = uob_mainprocess.sd_process(y, sr, 
                                                 audioname=filename,
                                                 audiopath=chunksfolder,
                                                 audiofile=file,
@@ -122,8 +122,8 @@ if chunksfolder != '':
                                                 pipeline=pa_pipeline,
                                                 chunks=True,
                                                 reducenoise=False,
-                                                sd_proc='pyannoteaudio')  # ?: [pyannoteaudio, malaya]
-            tem_sd_result.append(sd_result)
+                                                sd_proc='malaya')  # ?: [pyannoteaudio, malaya]
+            tem_sd_result.append(sd_result[1:])
             
             # TODO: ....................... STT .........................
             
@@ -136,7 +136,7 @@ else:
     y, sr = malaya_speech.load(AUDIO_FILE, SAMPLE_RATE)
 
     ### * Process: reduce noise + vad + scd + ovl + sd
-    sd_result = uob_mainprocess.process(y, sr, 
+    sd_result = uob_mainprocess.sd_process(y, sr, 
                                         audioname=AUDIO_NAME,
                                         audiopath=AUDIO_PATH,
                                         audiofile=AUDIO_FILE,
@@ -146,29 +146,42 @@ else:
                                         pipeline=pa_pipeline,
                                         chunks=False,
                                         reducenoise=False, 
-                                        sd_proc='pyannoteaudio')  # ?: [pyannoteaudio, malaya]
-    tem_sd_result.append(sd_result)
+                                        sd_proc='malaya')  # ?: [pyannoteaudio, malaya]
+    tem_sd_result.append(sd_result[1:])
 
-final_sd_result = pd.DataFrame(tem_sd_result, columns=['index','starttime','endtime','duration','speaker_label'])
+
+final_sd_result = pd.DataFrame(tem_sd_result.reverse(), columns=['index','starttime','endtime','duration','speaker_label'])
+### * Cut audio by SD result
+# namef, namec = os.path.splitext(AUDIO_NAME)
+slices_path = './stt'
+# slices_path = os.path.join(AUDIO_PATH, namef, 'slices').replace('\\','/')
+if not os.path.exists(slices_path):
+    os.mkdir(slices_path)
+uob_mainprocess.cut_audio_by_timestamps(start_end_list=sd_result, audioname=AUDIO_NAME, audiofile=AUDIO_FILE, part_path=slices_path)
+print('*'*30, 'Cut')
+
 # ....................... STT .........................
 # Get chunk audio files 
 from os import listdir
 from os.path import isfile, join
 import numpy as np
-onlyfiles = [f for f in listdir(r"E:\EBAC\Internship\UOB\Projects\uob_test\wav\The-Singaporean-White-Boy_first60s_slices") if isfile(join(r"E:\EBAC\Internship\UOB\Projects\uob_test\wav\The-Singaporean-White-Boy_first60s_slices", f))]
+onlyfiles = [f for f in listdir(r"E:\EBAC\Internship\UOB\Projects\UOB_Call_Center_SD\uob_integrated_proj-main_ZR\stt") if isfile(join(r"E:\EBAC\Internship\UOB\Projects\UOB_Call_Center_SD\uob_integrated_proj-main_ZR\stt", f))]
 print(onlyfiles)
 
 # STT
 import subprocess
 import re
 output=[]
+stt = pd.DataFrame(columns=['index', 'text'])
 for i in onlyfiles:
     if ".wav" in i:
         text = subprocess.check_output(["python","ffmpeg.py",i], cwd= "./stt").decode("utf-8") 
         textNew = re.findall('"([^"]*)"', text)
-        output.append(textNew[1])
-stt = pd.DataFrame({'text':output})
-final = pd.merge(final_sd_result, stt, left_index=True, right_index=True)
+        index = re.findall(r'\d+',i)[-1]
+        stt.loc[len(stt)] = [index, textNew[1]]
+sd = pd.read_csv('009NTWY_U3_CL_Shopping_220310-155915.csv')
+stt['index'] = stt['index'].astype(int)
+final = pd.merge(sd, stt, on="index")
 final.to_csv('output.csv')
 
 
@@ -178,6 +191,5 @@ print('*' * 30,'\n  Finished!!',)
 print('start from:', starttime) 
 print('end at:', endtime) 
 print('duration: ', endtime-starttime)
-
 
 
